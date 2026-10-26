@@ -1,0 +1,722 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
+<title>ThesisFlow AI</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap">
+<style>
+/* Layout: one guided column. A four-stage bar on top, the active stage below, a who-did-what log beside it. */
+:root{
+  --bg:#F1F4F8; --surface:#FFFFFF; --surface2:#F6F8FB; --ink:#0F1B2D; --muted:#58657A; --line:#D8DEE8;
+  --researcher:#2457D6; --gemma:#0B8A74; --devrelay:#B85C00;
+  --good:#1B7F4B; --warn:#9A5B00; --bad:#B3261E;
+  --term-bg:#0B1220; --term-fg:#D9E4F5; --term-dim:#7F8EA6;
+  --font-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-display:"IBM Plex Serif",Georgia,"Times New Roman",serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0B111B; --surface:#121A27; --surface2:#172131; --ink:#E7EDF6; --muted:#97A4B8; --line:#26324A;
+    --researcher:#86A8FF; --gemma:#3FD1B4; --devrelay:#FFB066;
+    --good:#4CC38A; --warn:#F0B35A; --bad:#FF8A80; --term-bg:#070C15; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0B111B; --surface:#121A27; --surface2:#172131; --ink:#E7EDF6; --muted:#97A4B8; --line:#26324A;
+  --researcher:#86A8FF; --gemma:#3FD1B4; --devrelay:#FFB066;
+  --good:#4CC38A; --warn:#F0B35A; --bad:#FF8A80; --term-bg:#070C15; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.5;
+  padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+.wrap{max-width:1180px;margin:0 auto}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--researcher);outline-offset:2px}
+
+.top{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:16px}
+.brand h1{font-family:var(--font-display);font-weight:600;font-size:30px;letter-spacing:-.01em;margin:0;line-height:1.1}
+.brand p{margin:6px 0 0;color:var(--muted);max-width:62ch}
+.topright{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.pill{font-size:12px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--muted);font-family:var(--font-mono)}
+.pill.live{color:var(--good);border-color:color-mix(in srgb,var(--good) 45%,var(--line))}
+.roles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:20px}
+.role{background:var(--surface);padding:12px 14px;min-width:0}
+.role b{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:2px}
+.dot{width:9px;height:9px;border-radius:50%;flex:none}
+.role span{color:var(--muted);font-size:13px}
+.d-researcher{background:var(--researcher)} .d-gemma{background:var(--gemma)} .d-devrelay{background:var(--devrelay)}
+
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:9px 16px;cursor:pointer;font-weight:500;font-size:14px}
+.btn:hover:not(:disabled){border-color:var(--muted)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--researcher);border-color:var(--researcher);color:#fff}
+:root[data-theme="dark"] .btn.primary{color:#07101F}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .btn.primary{color:#07101F}}
+.btn.gemma{background:var(--gemma);border-color:var(--gemma);color:#fff}
+:root[data-theme="dark"] .btn.gemma{color:#04120F}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .btn.gemma{color:#04120F}}
+.btn.small{padding:4px 10px;font-size:13px}
+
+.settings{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:20px}
+.settings h3{margin:0 0 4px;font-size:15px}
+.settings .note{color:var(--muted);font-size:13px;margin:0 0 12px}
+.sgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+
+/* stage bar */
+.stages{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:16px}
+.stg{display:flex;gap:10px;align-items:center;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:10px 12px;cursor:pointer;min-width:0}
+.stg:disabled{cursor:not-allowed;opacity:.5}
+.stg.active{border-color:var(--ink)}
+.num{flex:none;width:24px;height:24px;border-radius:50%;border:1.5px solid var(--line);display:grid;place-items:center;font-size:12px;font-family:var(--font-mono);color:var(--muted)}
+.stg.done .num{background:var(--good);border-color:var(--good);color:#fff}
+.stg.active .num{border-color:var(--ink);color:var(--ink)}
+.stg .t{font-weight:500;font-size:14px;line-height:1.25}
+
+.app{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:20px;align-items:start}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:26px;min-width:0}
+.phead{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.chip{font-size:12px;font-weight:500;padding:2px 9px;border-radius:999px}
+.chip.researcher{color:var(--researcher);background:color-mix(in srgb,var(--researcher) 13%,transparent)}
+.chip.gemma{color:var(--gemma);background:color-mix(in srgb,var(--gemma) 14%,transparent)}
+.chip.devrelay{color:var(--devrelay);background:color-mix(in srgb,var(--devrelay) 14%,transparent)}
+.panel h2{font-family:var(--font-display);font-weight:600;font-size:25px;margin:4px 0 6px;text-wrap:balance;line-height:1.2}
+.panel h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:22px 0 6px}
+.lede{color:var(--muted);margin:0 0 20px;max-width:66ch}
+.field{margin-bottom:16px}
+.field label{display:block;font-weight:600;font-size:14px;margin-bottom:2px}
+.field .q{display:block;color:var(--muted);font-size:13px;margin-bottom:6px}
+textarea,input[type=text],input[type=password],select{width:100%;border:1px solid var(--line);background:var(--surface2);border-radius:6px;padding:9px 11px}
+textarea{resize:vertical;min-height:70px;line-height:1.5}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.err{background:color-mix(in srgb,var(--bad) 10%,transparent);border:1px solid color-mix(in srgb,var(--bad) 45%,var(--line));color:var(--bad);border-radius:6px;padding:10px 12px;margin:12px 0;font-size:14px;white-space:pre-wrap}
+.empty{border:1px dashed var(--line);border-radius:8px;padding:22px;text-align:center;color:var(--muted)}
+.busy{display:inline-flex;gap:8px;align-items:center}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:sp .8s linear infinite;flex:none}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}}
+.example{font-size:13px;color:var(--muted);margin:-4px 0 14px}
+
+/* design view */
+.simple{background:color-mix(in srgb,var(--gemma) 9%,var(--surface));border:1px solid color-mix(in srgb,var(--gemma) 35%,var(--line));border-radius:8px;padding:14px 16px;margin-bottom:6px}
+.simple b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--gemma);margin-bottom:3px}
+.simple p{margin:0}
+.block{border-top:1px solid var(--line);padding:12px 0}
+.block:first-of-type{border-top:0}
+.block b{display:block;font-size:13px;color:var(--muted);margin-bottom:2px}
+.block p{margin:0}
+.block ul{margin:4px 0 0;padding-left:20px}.block li{margin-bottom:3px}
+details{margin-top:14px}
+summary{cursor:pointer;font-weight:500;font-size:14px}
+details[open] summary{margin-bottom:10px}
+
+/* pipeline */
+.pipe{list-style:none;margin:0 0 16px;padding:0;display:flex;flex-direction:column;gap:6px}
+.pipe li{display:grid;grid-template-columns:24px minmax(0,1fr);gap:10px;align-items:start;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface2)}
+.pipe .ic{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:12px;border:1.5px solid var(--line);color:var(--muted);margin-top:1px}
+.pipe .run .ic{border-color:var(--gemma);color:var(--gemma)}
+.pipe .done .ic{background:var(--good);border-color:var(--good);color:#fff}
+.pipe .fail .ic{background:var(--bad);border-color:var(--bad);color:#fff}
+.pipe .wait{opacity:.55}
+.pipe .l{font-weight:500;font-size:14px}
+.pipe .n{display:block;font-size:13px;color:var(--muted);font-weight:400}
+.term{background:var(--term-bg);color:var(--term-fg);border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+.termbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid #1d2a40;font-family:var(--font-mono);font-size:12px;color:var(--term-dim)}
+pre.out{margin:0;padding:14px;overflow:auto;max-height:340px;font-family:var(--font-mono);font-size:13px;line-height:1.55;white-space:pre;min-height:60px}
+
+/* results */
+.vhead{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.vchip{font-weight:600;font-size:14px;padding:5px 12px;border-radius:6px;border:1.5px solid}
+.vchip.supported{color:var(--good);border-color:var(--good)} .vchip.contradicted{color:var(--bad);border-color:var(--bad)} .vchip.inconclusive{color:var(--warn);border-color:var(--warn)}
+.md{background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin:0 0 6px}
+.md h4{margin:14px 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--gemma)}
+.md h4:first-child{margin-top:0}
+.md p{margin:4px 0} .md ul{margin:4px 0;padding-left:20px} .md li{margin-bottom:4px}
+.md code{font-family:var(--font-mono);font-size:13px;background:var(--surface);padding:1px 5px;border-radius:4px}
+.checks{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.checks li{display:flex;gap:10px;align-items:flex-start;font-size:14px}
+.checks .ok{color:var(--good);font-weight:700} .checks .no{color:var(--warn);font-weight:700}
+.codebox{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.codebox pre{margin:0;padding:14px;overflow:auto;max-height:420px;background:var(--term-bg);color:var(--term-fg);font-family:var(--font-mono);font-size:13px;line-height:1.55}
+.codebar{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;background:var(--surface2);border-bottom:1px solid var(--line);font-size:13px;color:var(--muted)}
+.outline{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 12px}
+.outline span{font-family:var(--font-mono);font-size:12px;padding:3px 8px;border:1px solid var(--line);border-radius:4px;color:var(--muted)}
+.prov{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:16px 0 0}
+.prov div{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--surface2);font-size:13px;min-width:0}
+.prov b{display:flex;gap:7px;align-items:center;margin-bottom:3px}
+
+.log{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}
+.log h3{margin:0 0 2px;font-size:14px}
+.log .sub{color:var(--muted);font-size:12px;margin:0 0 10px}
+.tally{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px}
+.tally div{text-align:center;border:1px solid var(--line);border-radius:6px;padding:6px 4px;background:var(--surface2)}
+.tally b{display:block;font-family:var(--font-mono);font-size:18px;font-variant-numeric:tabular-nums}
+.tally span{font-size:11px;color:var(--muted)}
+.log ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+.log li{display:grid;grid-template-columns:10px minmax(0,1fr);gap:9px;font-size:13px}
+.log li .dot{margin-top:6px}
+.log li small{display:block;color:var(--muted);font-family:var(--font-mono);font-size:11px}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:6px;font-size:13px;z-index:20}
+
+@media (max-width:980px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .log{position:static;max-height:none}
+}
+@media (max-width:640px){
+  .roles{grid-template-columns:minmax(0,1fr)}
+  .stages{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .panel{padding:18px}
+  .prov{grid-template-columns:minmax(0,1fr)}
+  .brand h1{font-size:26px}
+}
+.prog{height:6px;background:var(--surface2);border:1px solid var(--line);border-radius:99px;overflow:hidden;margin:0 0 6px}.prog i{display:block;height:100%;background:var(--gemma);transition:width .3s}
+.progt{font-size:12px;color:var(--muted);font-family:var(--font-mono);margin:0 0 12px}
+.tdots{display:inline-flex;gap:5px}.tdots i{width:9px;height:9px;border-radius:50%;background:#2a3850}
+pre.out .d{color:var(--term-dim)}pre.out .a{color:#6EE7B7;font-weight:500}pre.out .w{color:#FBBF24}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0 0 6px}
+.tile{border:1px solid var(--line);border-radius:8px;padding:8px;text-align:center;background:var(--surface2)}
+.tile b{display:block;font:600 20px var(--font-mono)}.tile span{font-size:12px;color:var(--muted)}
+.trow{display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;padding:7px 0;border-top:1px solid var(--line);font-size:14px}
+.trow small{display:block;color:var(--muted);font-size:12.5px}
+.badge{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:12px;color:#fff;margin-top:1px}
+.badge.pass{background:var(--good)}.badge.warn{background:var(--warn)}.badge.fail{background:var(--bad)}
+.sug label{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line);cursor:pointer;font-size:14px}
+.sug input{margin-top:4px;width:auto}.sug small{display:block;color:var(--muted);font-size:13px}
+.gate{border:1.5px solid var(--researcher);border-radius:10px;padding:16px;margin-top:22px;background:color-mix(in srgb,var(--researcher) 7%,var(--surface))}
+.gate p{margin:4px 0 12px;color:var(--muted);font-size:14px}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>ThesisFlow AI</h1>
+      <p>Tell us your field and your problem, and paste your own data if you have it. We choose the right analysis, design the study, explain it in plain words, build and test it, and hand you a research paper in LaTeX.</p>
+    </div>
+    <div class="topright">
+      <span id="modepill" class="pill"></span>
+      <button class="btn small" id="btn-settings" type="button">Settings</button>
+    </div>
+  </header>
+
+  <div class="roles" aria-label="Who does what">
+    <div class="role"><b><i class="dot d-researcher"></i>You</b><span>Describe your problem (and data if you have it), approve the plan before anything runs, and approve the test results before the paper is written.</span></div>
+    <div class="role"><b><i class="dot d-gemma"></i>Gemma</b><span>Designs the study, explains it simply, writes the code, and checks its own analysis.</span></div>
+    <div class="role"><b><i class="dot d-devrelay"></i>DevRelay</b><span>Runs the code and returns real outputs, errors and timings.</span></div>
+  </div>
+
+  <section class="settings" id="settings" hidden>
+    <h3>Connections</h3>
+    <p class="note">Demo mode replays a recorded Gemma design and analysis for the demo study, with a real recorded run. Live mode calls your own endpoints and only works in the downloaded copy of this page; the hosted preview blocks outside network calls. API keys stay in this tab's memory.</p>
+    <div class="sgrid">
+      <div class="field"><label for="set-provider">Language model</label>
+        <select id="set-provider"><option value="demo">Demo (recorded)</option><option value="gemma">Gemma via Google AI Studio</option><option value="openai">OpenAI-compatible endpoint (Ollama, vLLM, OpenRouter)</option></select></div>
+      <div class="field"><label for="set-model">Model name</label><input type="text" id="set-model" value="gemma-3-27b-it"></div>
+      <div class="field" id="wrap-url" hidden><label for="set-url">Base URL</label><input type="text" id="set-url" value="http://localhost:11434/v1"></div>
+      <div class="field" id="wrap-key" hidden><label for="set-key">API key</label><input type="password" id="set-key" autocomplete="off"></div>
+      <div class="field"><label for="set-exec">Execution</label>
+        <select id="set-exec"><option value="recorded">Recorded run (demo)</option><option value="devrelay">DevRelay</option></select></div>
+      <div class="field" id="wrap-dr" hidden><label for="set-dr-url">DevRelay run URL</label><input type="text" id="set-dr-url" placeholder="https://your-devrelay/run"></div>
+      <div class="field" id="wrap-drt" hidden><label for="set-dr-token">DevRelay token</label><input type="password" id="set-dr-token" autocomplete="off"></div>
+    </div>
+    <p class="note" id="dr-note" hidden>DevRelay contract used here: POST {language:"python", code, timeout_s} and read {stdout, stderr, exit_code, duration_ms}. Adjust <code>devrelayRun()</code> in this page to match the real API.</p>
+  </section>
+
+  <nav class="stages" id="stages" aria-label="Stages"></nav>
+  <main class="app">
+    <section class="panel" id="panel"></section>
+    <aside class="log" id="log"></aside>
+  </main>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* ---------- recorded demo assets (real output of this exact script) ---------- */
+const DEMO_CODE = "import numpy as np\n\nSEEDS = range(10)          # evaluation seeds\nTUNE_SEEDS = [100, 101, 102]  # separate seeds used only for learning-rate tuning\nLR_GRID = [0.002, 0.005, 0.01, 0.02, 0.05, 0.1]\nMAX_EPOCHS = 80\nBATCH = 32\n\ndef sigmoid(z):\n    return 1.0 / (1.0 + np.exp(-np.clip(z, -30, 30)))\n\ndef make_data(seed, n=2000, d=20):\n    rng = np.random.default_rng(seed)\n    scales = np.logspace(-1, 0.5, d)          # ill-conditioned features (0.1 .. 3.2)\n    X = rng.normal(size=(n, d)) * scales\n    w_true = rng.normal(size=d) / scales\n    y = (rng.random(n) < sigmoid(X @ w_true)).astype(float)\n    return X, y\n\ndef loss(w, X, y):\n    z = X @ w\n    return float(np.mean(np.logaddexp(0, z) - y * z))\n\ndef reference_loss(X, y):\n    w = np.zeros(X.shape[1])\n    for _ in range(30):                        # Newton's method for the optimum\n        p = sigmoid(X @ w)\n        g = X.T @ (p - y) / len(y)\n        H = (X.T * (p * (1 - p))) @ X / len(y) + 1e-8 * np.eye(len(w))\n        w -= np.linalg.solve(H, g)\n    return loss(w, X, y)\n\ndef epochs_to_target(X, y, lr, momentum, seed, target):\n    rng = np.random.default_rng(seed)\n    w = np.zeros(X.shape[1]); v = np.zeros_like(w); n = len(y)\n    for ep in range(1, MAX_EPOCHS + 1):\n        idx = rng.permutation(n)\n        for i in range(0, n, BATCH):\n            b = idx[i:i + BATCH]\n            g = X[b].T @ (sigmoid(X[b] @ w) - y[b]) / len(b)\n            v = momentum * v - lr * g\n            w = w + v\n        if loss(w, X, y) <= target:\n            return ep\n    return MAX_EPOCHS + 1                       # censored: never reached target\n\ndef tune(momentum):\n    best = None\n    for lr in LR_GRID:\n        eps = []\n        for s in TUNE_SEEDS:\n            X, y = make_data(s)\n            eps.append(epochs_to_target(X, y, lr, momentum, s, 1.05 * reference_loss(X, y)))\n        m = np.mean(eps)\n        if best is None or m < best[1]:\n            best = (lr, m)\n    return best[0]\n\nlr_plain = tune(0.0)\nlr_mom = tune(0.9)\nprint(f\"Tuned learning rates on held-out seeds -> plain SGD: {lr_plain}, momentum 0.9: {lr_mom}\")\n\nplain, mom = [], []\nfor s in SEEDS:\n    X, y = make_data(s)\n    target = 1.05 * reference_loss(X, y)       # success = within 5% of optimal loss\n    plain.append(epochs_to_target(X, y, lr_plain, 0.0, s, target))\n    mom.append(epochs_to_target(X, y, lr_mom, 0.9, s, target))\n    print(f\"seed {s}: plain={plain[-1]:>3} epochs | momentum={mom[-1]:>3} epochs\")\n\nplain, mom = np.array(plain), np.array(mom)\ndiff = plain - mom\nt = diff.mean() / (diff.std(ddof=1) / np.sqrt(len(diff)))\nprint(\"-\" * 52)\nprint(f\"Plain SGD   : mean {plain.mean():.1f} +/- {plain.std(ddof=1):.1f} epochs\")\nprint(f\"Momentum SGD: mean {mom.mean():.1f} +/- {mom.std(ddof=1):.1f} epochs\")\nprint(f\"Reduction   : {100 * (1 - mom.mean() / plain.mean()):.1f}%  (success criterion: >= 20%)\")\nprint(f\"Paired t = {t:.2f} (df={len(diff) - 1}); momentum faster on {(diff > 0).sum()}/{len(diff)} seeds\")\nprint(f\"Censored runs (never converged): plain={int((plain > MAX_EPOCHS).sum())}, momentum={int((mom > MAX_EPOCHS).sum())}\")\n";
+const DEMO_OUT = "Tuned learning rates on held-out seeds -> plain SGD: 0.1, momentum 0.9: 0.1\nseed 0: plain= 67 epochs | momentum= 16 epochs\nseed 1: plain= 81 epochs | momentum= 32 epochs\nseed 2: plain= 81 epochs | momentum= 17 epochs\nseed 3: plain= 52 epochs | momentum= 13 epochs\nseed 4: plain= 61 epochs | momentum= 11 epochs\nseed 5: plain= 81 epochs | momentum= 31 epochs\nseed 6: plain= 81 epochs | momentum= 37 epochs\nseed 7: plain= 81 epochs | momentum= 13 epochs\nseed 8: plain= 81 epochs | momentum= 38 epochs\nseed 9: plain= 81 epochs | momentum= 24 epochs\n----------------------------------------------------\nPlain SGD   : mean 74.7 +/- 10.8 epochs\nMomentum SGD: mean 23.2 +/- 10.5 epochs\nReduction   : 68.9%  (success criterion: >= 20%)\nPaired t = 17.79 (df=9); momentum faster on 10/10 seeds\nCensored runs (never converged): plain=7, momentum=0\n";
+const DEMO = {
+  domain: "Machine learning: optimization",
+  problem: "Training takes too many passes over the data when the input features are on very different scales.",
+  solution: "Add momentum to stochastic gradient descent so models train in fewer passes over the data, especially when the input features are on very different scales."
+};
+const DEMO_DESIGN = {
+  kind: "Simulation experiment",
+  title: "Does momentum speed up training on badly scaled data?",
+  plain_explanation: "Imagine walking downhill in a long, narrow valley. Plain gradient descent zigzags from wall to wall and makes slow progress. Momentum keeps some of your earlier speed, so you roll along the valley floor instead. We will race the two methods on data that is deliberately badly scaled, count how many passes each needs to get close to the best answer, and make sure the race is fair.",
+  hypothesis: "Adding momentum (0.9) to minibatch SGD reduces the epochs needed to converge on ill-conditioned logistic regression.",
+  method: "Generate synthetic data whose features differ about 30 times in scale. Tune each method's learning rate on separate seeds. Then run both methods on 10 fresh seeds and count the epochs until training loss is within 5% of the optimum (capped at 80 epochs).",
+  criterion: "At least 20% fewer epochs on average, and faster on most seeds.",
+  safeguards: [
+    "Each method gets its own tuned learning rate, so the comparison is fair.",
+    "'Converged' is fixed in advance: within 5% of the best possible loss.",
+    "10 random seeds, compared seed by seed.",
+    "Runs that never converge are counted at the cap, not thrown away."
+  ]
+};
+const DEMO_ANALYSIS = `VERDICT: supported
+
+## In simple words
+Momentum won the race. On average it needed about a third of the passes over the data that plain gradient descent needed, and it was faster on every one of the 10 trials. The result matches the hypothesis and clears the success bar.
+
+## What the numbers show
+- Momentum reached the target in 23.2 ± 10.5 epochs, against 74.7 ± 10.8 for plain SGD.
+- That is a **68.9%** reduction (the bar was 20%), and momentum was faster on **10 of 10** seeds (paired t = 17.79).
+
+## Limits
+- 7 of 10 plain-SGD runs hit the 80-epoch cap, so its true average is higher than 74.7. The 68.9% is a lower bound, and the t value is not reliable for capped runs.
+- The best learning rate for both methods (0.1) is the top of the tested range, so a wider range could change the gap.
+- One synthetic data type, one model. Repeat on real data before generalising.`;
+
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const now = () => new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+const texEsc = s => String(s ?? "").replace(/\\/g,"\\textbackslash{}").replace(/([&%$#_{}])/g,"\\$1").replace(/~/g,"\\textasciitilde{}").replace(/\^/g,"\\textasciicircum{}");
+function inl(t){return t.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/`(.+?)`/g,"<code>$1</code>")}
+function md(s){
+  let out="", list=false;
+  for(const l of esc(s).split("\n")){
+    let m;
+    if((m=l.match(/^##\s+(.*)/))){ if(list){out+="</ul>";list=false} out+="<h4>"+m[1]+"</h4>"; }
+    else if((m=l.match(/^[-*]\s+(.*)/))){ if(!list){out+="<ul>";list=true} out+="<li>"+inl(m[1])+"</li>"; }
+    else if(l.trim()===""){ if(list){out+="</ul>";list=false} }
+    else { if(list){out+="</ul>";list=false} out+="<p>"+inl(l)+"</p>"; }
+  }
+  return out+(list?"</ul>":"");
+}
+function setPath(path,val){const p=path.split(".");let o=S;for(let i=0;i<p.length-1;i++)o=o[p[i]];o[p[p.length-1]]=val}
+function toast(msg){const t=$("#toast");t.textContent=msg;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,1800)}
+async function copyText(text){
+  try{await navigator.clipboard.writeText(text);toast("Copied");return}catch(e){}
+  const ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();
+  try{document.execCommand("copy");toast("Copied")}catch(e){toast("Select the text and copy it")}
+  ta.remove();
+}
+
+/* ---------- state ---------- */
+const blank = () => ({
+  stage:0, max:0, busy:"", err:"",
+  domain:DEMO.domain, problem:DEMO.problem, solution:DEMO.solution, data:"",
+  design:null, code:"", run:null, termText:"", analysis:"", verdict:"", tests:[], sug:[], picked:{}, extra:[], tex:"", pipe:[], log:[]
+});
+const S = Object.assign(blank(), {cfg:{provider:"demo",model:"gemma-3-27b-it",url:"http://localhost:11434/v1",key:"",exec:"recorded",drUrl:"",drToken:""}});
+function resetStudy(){const cfg=S.cfg;Object.assign(S,blank(),{cfg});render()}
+function log(actor,text){S.log.unshift({actor,text,t:now()});renderLog()}
+const WHO = {researcher:"You", gemma:"Gemma", devrelay:"DevRelay"};
+const chip = w => `<span class="chip ${w}">${WHO[w]}</span>`;
+const STAGES = ["Your idea","Study design","Build and test","Review and approve","Research paper"];
+const PIPE = ["Writing the code","Running the experiment","Re-running to check it repeats","Analyzing the results","Running the test suite","Suggesting better tests"];
+const VERDICT_LABEL = {supported:"Hypothesis supported", contradicted:"Hypothesis contradicted", inconclusive:"Inconclusive"};
+const isDemoText = () => S.domain===DEMO.domain && S.problem===DEMO.problem && S.solution===DEMO.solution && !S.data.trim();
+const canGo = () => S.domain.trim() && S.problem.trim() && !(S.cfg.provider==="demo" && !isDemoText());
+const EXAMPLES = [
+  {domain:"Public health", problem:"Does a text-message reminder raise the share of patients who attend follow-up appointments?", solution:"Send an SMS reminder 24 hours before each appointment."},
+  {domain:"Education", problem:"Do students score higher when study time is spread over several days instead of one long session?", solution:"Spaced practice with short daily sessions."},
+  {domain:"Operations", problem:"Which queue policy gives shorter average waits at a busy clinic?", solution:"Compare first-come-first-served with a priority queue for short visits."}
+];
+
+/* ---------- model + execution ---------- */
+function inputText(){return `DOMAIN: ${S.domain}\nPROBLEM: ${S.problem}\n${S.solution.trim()?"IDEA: "+S.solution+"\n":""}${S.data.trim()?"DATA (CSV text, first 20000 characters):\n"+S.data.slice(0,20000)+"\n":""}`}
+function designText(){const d=S.design;return `${inputText()}\nKIND OF ANALYSIS: ${d.kind}\nHYPOTHESIS: ${d.hypothesis}\nMETHOD: ${d.method}\nSUCCESS CRITERION: ${d.criterion}\nSAFEGUARDS:\n${d.safeguards.map(s=>"- "+s).join("\n")}`}
+const PROMPTS = {
+  design: () => `You are a research design partner. The researcher gave a DOMAIN, a PROBLEM, and optionally an IDEA and DATA. Design the whole study yourself. First choose the right kind of analysis for this problem (for example: statistical analysis of the supplied data, simulation, algorithm or model benchmark, A/B comparison, numerical calculation) and name it in "kind". Then give one testable hypothesis (or a clear question if no hypothesis fits), a method that runs in Python 3 with only the standard library and numpy in under 60 seconds, a measurable success criterion fixed in advance, and 3 to 5 safeguards suited to this kind of study (for example fair baseline, controls, sample size, uncertainty, how missing or failed cases are counted). If no DATA is supplied, say plainly in the explanation that the study uses clearly labelled synthetic data and so tests the method, not the real world. Then explain it to a non-expert in 3 to 5 simple sentences with one everyday analogy and no jargon.\n\n${inputText()}\n\nReturn ONLY valid JSON: {"kind":"...","title":"...","plain_explanation":"...","hypothesis":"...","method":"...","criterion":"...","safeguards":["..."]}`,
+  code: () => `Implement this approved study as one self-contained Python 3 script using only the standard library and numpy. Fix random seeds. If DATA is given, embed it verbatim as a triple-quoted string and parse it with the csv module; never invent extra rows. Print clear per-run results and a final summary that states whether the success criterion was met. Return only the code in one \`\`\`python block.\n\n${designText()}${extraTests()}`,
+  fix: () => `This Python script failed. Return the full corrected script in one \`\`\`python block, keeping the study design unchanged.\n\nSCRIPT:\n${S.code}\n\nERROR OUTPUT:\n${S.lastErr}`,
+  analysis: () => `Analyze these real results against the hypothesis and success criterion. Use ONLY numbers that appear in the output. First line must be exactly "VERDICT: supported", "VERDICT: contradicted" or "VERDICT: inconclusive". Then use these headings exactly: "## In simple words" (3 to 4 plain sentences, no jargon), "## What the numbers show", "## Limits".\n\n${designText()}\n\nEXECUTION OUTPUT:\n${S.run.stdout}`,
+  tex: () => `Write a complete, publication-quality LaTeX article for this study using ONLY the material below. Preamble: a4paper article, fontenc T1, lmodern, microtype, geometry, amsmath, booktabs, tabularx, xcolor, caption, pgfplots, listings, hyperref. Structure: title block with keywords, abstract (background, method, result with numbers, limitation), Introduction with a contribution list, Related Work, Hypothesis and Method, Results (booktabs table plus one pgfplots figure when per-run numbers exist), Verification and Test Suite (a table of every test with its status), Discussion and Limitations, Conclusion, Appendix with reproducibility details. Put every number from the output into Results and invent no other numbers. Report warnings honestly as limitations. Do NOT invent citations; in Related Work write \\textbf{[TODO: add related work]}. Return only LaTeX.\n\n${designText()}\n\nEXECUTION OUTPUT:\n${S.run.stdout}\n\nTEST REPORT:\n${S.tests.map(t=>t.s.toUpperCase()+": "+t.n+(t.d?" ("+t.d+")":"")).join("\n")}\n\nANALYSIS (verdict ${S.verdict}):\n${S.analysis}`,
+  suggest: () => `Given this study, its real output and its test report, suggest exactly 4 stronger tests that would make the conclusion more trustworthy (for example controls, wider search ranges, more seeds, better statistics for the weaknesses you see). Return ONLY a JSON array: [{"name":"short title","why":"one sentence tied to a specific weakness in the output"}]\n\n${designText()}\n\nOUTPUT:\n${S.run.stdout}\n\nTEST REPORT:\n${S.tests.map(t=>t.s+": "+t.n+(t.d?" ("+t.d+")":"")).join("\n")}`
+};
+
+const DEMO_SUG = JSON.stringify([
+  {name:"Widen the learning-rate grid",why:"Both methods picked 0.1, the top of the grid, so a better value may lie outside it."},
+  {name:"Use a censoring-aware statistic",why:"7 of 10 plain-SGD runs hit the epoch cap, so the t value is unreliable; a bootstrap interval or sign test is safer."},
+  {name:"Add a well-conditioned negative control",why:"If momentum also wins on equally scaled features, the gain is not about conditioning."},
+  {name:"Run 30 seeds instead of 10",why:"More independent runs narrow the interval and make a seed-by-seed claim more convincing."}
+]);
+
+/* ---------- test suite: computed from the real code and output, not by the model ---------- */
+const addT = (g,n,s,d="") => S.tests.push({g,n,s,d});
+const countT = () => ({pass:S.tests.filter(t=>t.s==="pass").length, warn:S.tests.filter(t=>t.s==="warn").length, fail:S.tests.filter(t=>t.s==="fail").length});
+function runTests(){
+  const o=S.run.stdout, c=S.code, A=S.analysis, err=(S.run.stderr||"").trim();
+  addT("Execution","No errors or warnings on stderr",err?"warn":"pass",err?err.slice(0,100):"stderr is empty");
+  addT("Execution","No NaN or infinite values in the output",/\b(nan|inf)\b/i.test(o)?"fail":"pass");
+  if(/random|rng|shuffle|bootstrap|permutation/i.test(c)) addT("Design","Random seeds are fixed in the code",/default_rng\(|random\.seed|np\.random\.seed|RandomState\(/.test(c)?"pass":"fail","randomness is used, so every source must be seeded");
+  const mods=[...c.matchAll(/^\s*(?:import|from)\s+(\w+)/gm)].map(m=>m[1]), bad=mods.filter(m=>!["numpy","math","random","statistics","itertools","time","collections","functools","csv","json","re","io","heapq","bisect","datetime","fractions","decimal","operator","sys","string","textwrap"].includes(m));
+  addT("Design","Uses only numpy and the standard library",bad.length?"fail":"pass",bad.length?"also imports: "+bad.join(", "):"");
+  addT("Design","No network or file access in the script",/\b(requests|urllib|socket)\b|open\(/.test(c)?"fail":"pass");
+  addT("Design","Uses real data supplied by you",S.data.trim()?"pass":"warn",S.data.trim()?"the analysis starts from your data":"synthetic data only, so conclusions describe the method, not the real world");
+  if(S.data.trim()){ const cell=(S.data.trim().split("\n")[1]||"").split(",")[0].trim(); addT("Design","Script contains your data",cell&&c.includes(cell)?"pass":"warn",cell?"":"could not find a data row to match"); }
+  if(/GRID|tune|learning_rate|\blr\b/i.test(c)){ const tn=/tune|held.?out|validation/i.test(c); addT("Design","Settings are tuned on separate data",tn?"pass":"warn",tn?"tuning is separate from evaluation":"no separate tuning step found"); }
+  const runs=(o.match(/^(seed|run|trial)\s*\d+/gim)||[]).length;
+  if(runs||/seed/i.test(c)) addT("Statistics","At least 20 independent runs",runs>=20?"pass":"warn",`${runs} runs reported; 20 or more narrows the interval`);
+  const hasN=/\bn\s*=\s*\d+|\d+\s+(samples|rows|runs|seeds|trials|observations|patients|students)/i.test(o), hasU=/\bCI\b|confidence|interval|p\s*[=<]|p-value|std|\+\/-|±/i.test(o);
+  addT("Statistics","Reports its sample size",hasN?"pass":"warn",hasN?"":"no sample size found in the output");
+  addT("Statistics","Reports uncertainty (interval, p-value or spread)",hasU?"pass":"warn",hasU?"":"a single number without uncertainty is hard to trust");
+  const g=c.match(/\w*GRID\w*\s*=\s*\[([^\]]+)\]/);
+  if(g){ const v=g[1].split(",").map(Number).filter(x=>!isNaN(x)), first=o.split("\n")[0], hit=x=>new RegExp("(^|[^\\d.])"+String(x).replace(".","\\.")+"(?![\\d])").test(first);
+    const edge=hit(Math.max(...v))?Math.max(...v):hit(Math.min(...v))?Math.min(...v):null;
+    addT("Statistics","Best setting is inside the searched grid",edge===null?"pass":"warn",edge===null?"":`${edge} is at the edge of the grid, so a better value may exist outside it`); }
+  const cm=o.match(/(censor|capped|never converged)[^\n]*/i), cn=cm?(cm[0].match(/=\s*(\d+)/g)||[]).reduce((a,x)=>a+ +x.replace(/\D/g,""),0):0;
+  if(cm) addT("Statistics","Few or no runs hit the cap",cn?"warn":"pass",cn?`${cn} runs never reached the target, so averages are lower bounds`:"no capped runs");
+  if(/paired t|t-test/i.test(o)&&cn) addT("Statistics","Test statistic suits censored data","warn","a t test assumes uncapped values; prefer a bootstrap or sign test");
+  const nums=[...new Set(A.match(/\d+\.\d+/g)||[])], miss=nums.filter(n=>!o.includes(n));
+  addT("Honesty","Every number in the analysis is in the real output",miss.length?"fail":"pass",miss.length?"not found: "+miss.join(", "):`${nums.length} numbers checked`);
+  addT("Honesty","The analysis states its limits",/##\s*Limits[\s\S]*\n[-*]\s/.test(A)?"pass":"warn");
+}
+function parseSug(t){ const a=t.indexOf("["), b=t.lastIndexOf("]"); try{ return JSON.parse(t.slice(a,b+1)).filter(x=>x&&x.name).slice(0,5); }catch(e){ return []; } }
+const extraTests = () => S.extra&&S.extra.length ? "\n\nALSO IMPLEMENT THESE ADDITIONAL TESTS AND REPORT THEIR RESULTS:\n"+S.extra.map(x=>"- "+x).join("\n") : "";
+const colorize = t => esc(t).split("\n").map(l=>/^(seed|run|trial)\s*\d+|^-{5,}/i.test(l)?`<span class="d">${l}</span>`:/reduction|paired t|criterion|: mean/i.test(l)?`<span class="a">${l}</span>`:/censor|warn|differs/i.test(l)?`<span class="w">${l}</span>`:l).join("\n");
+
+function demoTex(){
+  const d=S.design, rows=[...S.run.stdout.matchAll(/seed\s*(\d+):\s*plain=\s*(\d+)[^|]*\|\s*momentum=\s*(\d+)/g)];
+  const co=i=>rows.map(m=>`(${m[1]},${m[i]})`).join(" "), c=S.tests.length?countT():{pass:0,warn:0,fail:0};
+  const st={pass:String.raw`\textcolor{green!50!black}{Pass}`,warn:String.raw`\textcolor{orange!80!black}{Warning}`,fail:String.raw`\textcolor{red!70!black}{Fail}`};
+  return String.raw`\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern,microtype}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb,booktabs,array,tabularx,xcolor,enumitem,caption,listings}
+\usepackage{pgfplots}\pgfplotsset{compat=1.16}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+\captionsetup{font=small,labelfont=bf}
+\setlist{itemsep=2pt}
+\lstset{basicstyle=\ttfamily\scriptsize,breaklines=true,frame=single,numbers=left,numberstyle=\tiny\color{gray}}
+\title{\textbf{${texEsc(d.title)}}}
+\author{\textbf{[TODO: author name]}\\ \textbf{[TODO: affiliation]}}
+\date{\today}
+\begin{document}
+\maketitle
+\begin{abstract}\noindent
+We study whether ${texEsc(S.solution.replace(/\.$/,"").replace(/^./,x=>x.toLowerCase()))}. On badly scaled logistic regression, SGD with momentum reached the target in 23.2 epochs on average versus 74.7 for plain SGD, a reduction of at least 68.9\%, and was faster on all 10 seeds. Because 7 of 10 plain-SGD runs hit the epoch cap, we treat this as a lower bound. An automated suite of ${S.tests.length} checks passed ${c.pass} and raised ${c.warn} warnings and ${c.fail} failures.
+\par\smallskip\noindent\textbf{Keywords:} ${texEsc(S.domain.toLowerCase())}; stochastic gradient descent; reproducible research.
+\end{abstract}
+
+\section{Introduction}
+Domain: ${texEsc(S.domain)}. ${texEsc(S.solution)}
+
+The contributions of this report are:
+\begin{itemize}
+  \item a pre-specified experiment with a fixed success criterion and an explicit baseline;
+  \item results over 10 independent random seeds with the raw per-seed values;
+  \item an automated verification suite whose outcome, including warnings, is reported in full.
+\end{itemize}
+
+\section{Related Work}
+Momentum methods go back to Polyak~\cite{polyak1964} and were shown to matter for deep network training by Sutskever et al.~\cite{sutskever2013}. \textbf{[TODO: add further related work]}
+
+\section{Hypothesis and Method}
+\subsection{Hypothesis}
+${texEsc(d.hypothesis)}
+\subsection{Method}
+${texEsc(d.method)}
+\subsection{Safeguards}
+\begin{itemize}
+${d.safeguards.map(x=>"  \\item "+texEsc(x)).join("\n")}
+\end{itemize}
+\subsection{Success criterion}
+${texEsc(d.criterion)}
+
+\section{Results}
+\begin{table}[ht]
+\centering
+\begin{tabular}{lcc}
+\toprule
+Method & Mean epochs to target & Std.\ dev. \\
+\midrule
+Plain SGD (lr 0.1) & 74.7 & 10.8 \\
+Momentum 0.9 (lr 0.1) & 23.2 & 10.5 \\
+\bottomrule
+\end{tabular}
+\caption{Epochs to reach training loss within 5\% of the optimum, 10 seeds. Runs that never converged count as 81 epochs (7 of 10 plain-SGD runs, 0 of 10 momentum runs).}
+\label{tab:main}
+\end{table}
+Momentum reduced mean epochs-to-target by 68.9\% and was faster on 10 of 10 seeds (paired $t = 17.79$, 9 d.f.; see Section~\ref{sec:limits} for why this statistic is optimistic).
+${rows.length?String.raw`
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+\begin{axis}[ybar,width=0.95\linewidth,height=6.2cm,bar width=5pt,xlabel={Seed},ylabel={Epochs to target},ymin=0,xtick=data,enlarge x limits=0.08,legend style={at={(0.5,1.04)},anchor=south,legend columns=2,draw=none},ymajorgrids=true,grid style={gray!25}]
+\addplot[fill=blue!55!black,draw=none] coordinates {${co(2)}};
+\addplot[fill=teal!70!black,draw=none] coordinates {${co(3)}};
+\legend{Plain SGD,Momentum 0.9}
+\end{axis}
+\end{tikzpicture}
+\caption{Per-seed epochs to target. Bars at 81 are runs that hit the epoch cap.}
+\label{fig:perseed}
+\end{figure}`:""}
+
+\section{Verification and Test Suite}
+Every check below was computed from the executed code and its real output, not by the language model. Overall: ${c.pass} passed, ${c.warn} warnings, ${c.fail} failed.
+\begin{table}[ht]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}l X c@{}}
+\toprule
+Group & Test & Status \\
+\midrule
+${S.tests.map(t=>`${texEsc(t.g)} & ${texEsc(t.n)} & ${st[t.s]} \\\\`).join("\n")}
+\bottomrule
+\end{tabularx}
+\caption{Automated verification results.}
+\label{tab:tests}
+\end{table}
+
+\section{Discussion and Limitations}\label{sec:limits}
+Because 7 of 10 plain-SGD runs hit the epoch cap, the reported reduction is a lower bound and the $t$ statistic should be treated with caution. The selected learning rate (0.1) is the largest value tested for both methods, so a wider search could change the gap. Results are limited to one synthetic data family and one model.
+
+\section{Conclusion}
+${VERDICT_LABEL[S.verdict]||"Inconclusive"}: the measured reduction exceeds the pre-registered 20\% threshold. Replication on real datasets, with a wider learning-rate grid and a censoring-aware statistic, is the natural next step.
+
+\appendix
+\section{Reproducibility}
+All experiments use fixed random seeds, Python 3 and numpy only. The complete script follows.
+\begin{lstlisting}[language=Python]
+${S.code.trimEnd()}
+\end{lstlisting}
+
+\begin{thebibliography}{9}
+\bibitem{polyak1964} B.\ T.\ Polyak. Some methods of speeding up the convergence of iteration methods. \emph{USSR Computational Mathematics and Mathematical Physics}, 1964.
+\bibitem{sutskever2013} I.\ Sutskever, J.\ Martens, G.\ Dahl, G.\ Hinton. On the importance of initialization and momentum in deep learning. \emph{ICML}, 2013.
+\end{thebibliography}
+\end{document}
+`;
+}
+
+function explainNet(e){
+  if(e instanceof TypeError) return new Error("The network call was blocked or unreachable. Live mode needs the downloaded copy of this page (the hosted preview blocks outside requests) and a reachable endpoint. Switch back to Demo in Settings to continue.");
+  return e;
+}
+async function callLLM(kind){
+  const c = S.cfg;
+  if(c.provider==="demo"){
+    await sleep(1100+Math.random()*600);
+    if(kind==="design") return JSON.stringify(DEMO_DESIGN);
+    if(kind==="code"||kind==="fix") return DEMO_CODE;
+    if(kind==="analysis") return DEMO_ANALYSIS;
+    if(kind==="suggest") return DEMO_SUG;
+    return demoTex();
+  }
+  const prompt = PROMPTS[kind]();
+  try{
+    if(c.provider==="gemma"){
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(c.model)}:generateContent?key=${encodeURIComponent(c.key)}`,
+        {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{role:"user",parts:[{text:prompt}]}],generationConfig:{temperature:0.3}})});
+      if(!r.ok) throw new Error("Gemma API "+r.status+": "+(await r.text()).slice(0,200));
+      const j = await r.json();
+      return (j.candidates?.[0]?.content?.parts||[]).map(p=>p.text).join("");
+    }
+    const r = await fetch(c.url.replace(/\/$/,"")+"/chat/completions",
+      {method:"POST",headers:{"Content-Type":"application/json",...(c.key?{Authorization:"Bearer "+c.key}:{})},body:JSON.stringify({model:c.model,messages:[{role:"user",content:prompt}],temperature:0.3})});
+    if(!r.ok) throw new Error("Model endpoint "+r.status+": "+(await r.text()).slice(0,200));
+    const j = await r.json();
+    return j.choices?.[0]?.message?.content||"";
+  }catch(e){ throw explainNet(e); }
+}
+function parseDesign(t){
+  const a=t.indexOf("{"), b=t.lastIndexOf("}");
+  let j; try{ j=JSON.parse(t.slice(a,b+1)); }catch(e){ throw new Error("Gemma's reply was not valid JSON. Try again."); }
+  for(const k of ["hypothesis","method","criterion","plain_explanation"]) if(!j[k]) throw new Error("Gemma's design was missing: "+k+". Try again.");
+  j.title=j.title||"Untitled study"; j.kind=j.kind||"Experiment"; j.safeguards=Array.isArray(j.safeguards)?j.safeguards:[];
+  return j;
+}
+const extractCode = t => ((t.match(/```(?:python)?\n([\s\S]*?)```/)||[])[1]||t).trim()+"\n";
+const extractTex = t => ((t.match(/```(?:latex|tex)?\n([\s\S]*?)```/)||[])[1]||t).trim()+"\n";
+
+async function devrelayRun(code){
+  const c=S.cfg;
+  if(c.exec==="recorded"){ await sleep(1200); return {stdout:DEMO_OUT, stderr:"", exit_code:0, ms:6600, source:"recorded"}; }
+  if(!c.drUrl) throw new Error("Add the DevRelay run URL in Settings.");
+  try{
+    const r = await fetch(c.drUrl,{method:"POST",headers:{"Content-Type":"application/json",...(c.drToken?{Authorization:"Bearer "+c.drToken}:{})},body:JSON.stringify({language:"python",code,timeout_s:120})});
+    if(!r.ok) throw new Error("DevRelay "+r.status+": "+(await r.text()).slice(0,200));
+    const j = await r.json();
+    return {stdout:j.stdout??j.output??"", stderr:j.stderr??"", exit_code:j.exit_code??j.exitCode??0, ms:j.duration_ms??j.durationMs??0, source:"devrelay"};
+  }catch(e){ throw explainNet(e); }
+}
+
+/* ---------- pipeline: code -> run -> re-run -> analyze -> verify -> paper ---------- */
+async function streamTerm(text,delay){
+  const term=$("#term");
+  for(const l of text.split("\n")){ S.termText+=l+"\n"; if(term){term.innerHTML=colorize(S.termText);term.scrollTop=term.scrollHeight;} await sleep(delay); }
+}
+async function runPipeline(){
+  Object.assign(S,{stage:2,err:"",busy:"pipe",termText:"",run:null,analysis:"",verdict:"",tests:[],sug:[],tex:"",code:"",lastErr:""});
+  S.max=Math.max(S.max,2);
+  S.pipe=PIPE.map(label=>({label,status:"wait",note:""}));
+  render();
+  const step=async(i,fn)=>{
+    S.pipe[i].status="run"; renderPanel();
+    try{ S.pipe[i].note=(await fn())||""; S.pipe[i].status="done"; }
+    catch(e){ S.pipe[i].status="fail"; S.pipe[i].note=e.message; throw e; }
+    renderPanel();
+  };
+  try{
+    await step(0,async()=>{ S.code=extractCode(await callLLM("code")); log("gemma","Wrote the experiment code"); return `${S.code.trim().split("\n").length} lines of Python`; });
+    await step(1,async()=>{
+      let r=await devrelayRun(S.code);
+      if(r.exit_code!==0){
+        S.pipe[1].note="First run failed. Asking Gemma to fix the code…"; renderPanel();
+        S.lastErr=(r.stderr||r.stdout).slice(-1500); S.code=extractCode(await callLLM("fix")); log("gemma","Fixed the code after an error");
+        r=await devrelayRun(S.code);
+      }
+      await streamTerm(r.stdout,r.source==="recorded"?140:0);
+      if(r.exit_code!==0) throw new Error("The experiment failed twice.\n"+(r.stderr||"").slice(-600));
+      S.run=r; addT("Execution","Script runs to the end",r.exit_code===0?"pass":"fail",`exit ${r.exit_code} in ${(r.ms/1000).toFixed(1)}s`);
+      log("devrelay",`Ran the experiment in ${(r.ms/1000).toFixed(1)}s, exit 0`); return `Finished in ${(r.ms/1000).toFixed(1)}s`;
+    });
+    await step(2,async()=>{
+      const r2=await devrelayRun(S.code); const same=r2.stdout===S.run.stdout;
+      const rec=S.cfg.exec==="recorded";
+      addT("Execution","Re-running gives identical output",same?"pass":"fail",same?(rec?"checked when the demo was recorded":"two runs, same output"):"the experiment is not repeatable");
+      log("devrelay",same?"Re-ran the script: identical output":"Re-ran the script: output differs"); return same?"Identical output":"Output differs between runs";
+    });
+    await step(3,async()=>{
+      const t=await callLLM("analysis"); const m=t.match(/VERDICT:\s*(supported|contradicted|inconclusive)/i);
+      S.verdict=m?m[1].toLowerCase():"inconclusive"; S.analysis=t.replace(/VERDICT:.*\n?/i,"").trim();
+      log("gemma","Analyzed the results: "+VERDICT_LABEL[S.verdict]); return VERDICT_LABEL[S.verdict];
+    });
+    await step(4,async()=>{ await sleep(500); runTests(); const c=countT(); log("devrelay",`Test suite: ${c.pass} passed, ${c.warn} warnings, ${c.fail} failed`); return `${c.pass} passed, ${c.warn} warnings, ${c.fail} failed`; });
+    await step(5,async()=>{ S.sug=parseSug(await callLLM("suggest")); S.picked={}; log("gemma","Suggested better tests"); return `${S.sug.length} ideas`; });
+    S.stage=3; S.max=3; S.busy="";
+    render();
+  }catch(e){ S.err=e.message||String(e); S.busy=""; render(); }
+}
+
+/* ---------- rendering ---------- */
+function renderMode(){
+  const c=S.cfg, demo=c.provider==="demo"&&c.exec==="recorded", p=$("#modepill");
+  p.className="pill"+(demo?"":" live");
+  p.textContent = demo ? "Demo mode: recorded Gemma, real recorded run" : `Live: ${c.provider==="demo"?"demo model":c.model} + ${c.exec==="devrelay"?"DevRelay":"recorded run"}`;
+}
+function renderStages(){
+  $("#stages").innerHTML = STAGES.map((s,i)=>`<button class="stg ${i===S.stage?"active":""} ${i<S.max||(i===S.max&&S.max===4)?"done":""}" data-act="goto" data-i="${i}" type="button" ${i>S.max||S.busy?"disabled":""}><span class="num">${i<S.max||(S.max===4&&i===4)?"✓":i+1}</span><span class="t">${s}</span></button>`).join("");
+}
+function renderLog(){
+  const n=a=>S.log.filter(l=>l.actor===a).length;
+  $("#log").innerHTML = `<h3>Who did what</h3><p class="sub">Every step has an owner.</p>
+    <div class="tally"><div><b>${n("researcher")}</b><span>You</span></div><div><b>${n("gemma")}</b><span>Gemma</span></div><div><b>${n("devrelay")}</b><span>DevRelay</span></div></div>
+    ${S.log.length?`<ol>${S.log.map(l=>`<li><i class="dot d-${l.actor}"></i><span>${esc(l.text)}<small>${WHO[l.actor]} · ${l.t}</small></span></li>`).join("")}</ol>`:`<p class="sub">Nothing yet. Describe your idea to begin.</p>`}`;
+}
+const spin = t => `<span class="busy"><i class="spin"></i>${t}</span>`;
+const errBox = () => S.err?`<div class="err" role="alert">${esc(S.err)}</div>`:"";
+const PANELS = [
+/* 0 idea */ () => `<div class="phead">${chip("researcher")}</div><h2>What problem do you want to solve?</h2>
+  <p class="lede">Describe a problem in any field. Gemma picks the right kind of analysis, designs the study, builds it, tests it and writes it up. Paste your own data if you have it.</p>
+  <div class="field"><label for="f-domain">Domain</label><span class="q">Which field or area is this in?</span><input type="text" id="f-domain" data-bind="domain" value="${esc(S.domain)}"></div>
+  <div class="field"><label for="f-problem">Problem or question</label><span class="q">What do you want to find out or fix?</span><textarea id="f-problem" data-bind="problem" rows="3">${esc(S.problem)}</textarea></div>
+  <div class="field"><label for="f-solution">Your idea <span style="font-weight:400;color:var(--muted)">(optional)</span></label><span class="q">An approach you want to try. Leave it empty and Gemma proposes one.</span><textarea id="f-solution" data-bind="solution" rows="2">${esc(S.solution)}</textarea></div>
+  <div class="field"><label for="f-data">Your data <span style="font-weight:400;color:var(--muted)">(optional)</span></label><span class="q">Paste CSV text with a header row. Without it, the study uses clearly labelled synthetic data.</span><textarea id="f-data" data-bind="data" rows="4" style="font-family:var(--font-mono);font-size:13px" placeholder="group,outcome&#10;A,12.1&#10;B,14.3">${esc(S.data)}</textarea></div>
+  <p class="example">Try another field: ${EXAMPLES.map((e,i)=>`<button class="btn small" data-act="example" data-i="${i}" type="button">${e.domain}</button>`).join(" ")}</p>
+  ${isDemoText()?`<p class="example">This is an example so you can see the whole flow. Replace the fields with your own problem.</p>`:S.cfg.provider==="demo"?`<p class="example" style="color:var(--warn)">Demo mode only replays one recorded study. To analyze your own problem, connect a model in Settings. <button class="btn small" data-act="opensettings" type="button">Open Settings</button></p>`:""}
+  ${errBox()}
+  <div class="actions">${S.busy==="design"?`<span class="chip gemma" style="padding:8px 14px">${spin("Gemma is designing your study…")}</span>`:`<button class="btn primary" id="gobtn" data-act="design" type="button" ${canGo()?"":"disabled"}>Design my study</button>`}</div>`,
+
+/* 1 design */ () => { const d=S.design; return `<div class="phead">${chip("gemma")}<span class="pill">${esc(d.kind)}</span><span style="color:var(--muted);font-size:13px">designed this for you</span></div>
+  <h2>${esc(d.title)}</h2>
+  <div class="simple"><b>In simple words</b><p>${esc(d.plain_explanation)}</p></div>
+  <h3>The plan</h3>
+  <div class="block"><b>What we will test</b><p>${esc(d.hypothesis)}</p></div>
+  <div class="block"><b>How we will test it</b><p>${esc(d.method)}</p></div>
+  <div class="block"><b>What counts as success</b><p>${esc(d.criterion)}</p></div>
+  ${d.safeguards.length?`<div class="block"><b>Safeguards so the result can be trusted</b><ul>${d.safeguards.map(s=>`<li>${esc(s)}</li>`).join("")}</ul></div>`:""}
+  <details><summary>Change something in the plan</summary>
+    <div class="field"><label for="d-h">What we will test</label><textarea id="d-h" data-bind="design.hypothesis" rows="2">${esc(d.hypothesis)}</textarea></div>
+    <div class="field"><label for="d-m">How we will test it</label><textarea id="d-m" data-bind="design.method" rows="4">${esc(d.method)}</textarea></div>
+    <div class="field"><label for="d-c">What counts as success</label><textarea id="d-c" data-bind="design.criterion" rows="2">${esc(d.criterion)}</textarea></div>
+  </details>
+  ${errBox()}
+  <div class="actions" style="margin-top:22px"><button class="btn primary" data-act="approve" type="button">Looks good, build and test it</button><button class="btn" data-act="redesign" type="button">Design it again</button></div>`; },
+
+/* 2 pipeline */ () => `<div class="phead">${chip("gemma")}${chip("devrelay")}</div><h2>${S.busy?"Building and testing your study":"The run stopped early"}</h2>
+  <p class="lede">Each step runs on its own. Nothing here needs you.</p>
+  <div class="prog"><i style="width:${Math.round(S.pipe.filter(p=>p.status==="done").length/S.pipe.length*100)}%"></i></div><p class="progt">${S.pipe.filter(p=>p.status==="done").length} of ${S.pipe.length} steps done</p><ol class="pipe">${S.pipe.map(p=>`<li class="${p.status}"><span class="ic">${p.status==="done"?"✓":p.status==="fail"?"!":p.status==="run"?`<i class="spin" style="width:10px;height:10px"></i>`:""}</span><span class="l">${p.label}<span class="n">${esc(p.note)}</span></span></li>`).join("")}</ol>
+  <div class="term"><div class="termbar"><span class="tdots"><i></i><i></i><i></i></span><span>$ python experiment.py</span><span style="margin-left:auto">${S.busy?"running":"stopped"}</span></div><pre class="out" id="term">${colorize(S.termText)}</pre></div>
+  ${errBox()}${!S.busy?`<div class="actions" style="margin-top:14px"><button class="btn primary" data-act="approve" type="button">Try again</button><button class="btn" data-act="goto" data-i="1" type="button">Back to the plan</button></div>`:""}`,
+
+/* 3 review */ () => { const c=countT();
+  return `<div class="phead">${chip("gemma")}${chip("devrelay")}</div>
+  <div class="vhead"><span class="vchip ${S.verdict}">${VERDICT_LABEL[S.verdict]}</span><span style="color:var(--muted);font-size:13px">${esc(S.design.title)}</span></div>
+  <div class="md">${md(S.analysis)}</div>
+  <h3>Test report</h3>
+  <div class="tiles"><div class="tile"><b>${S.tests.length}</b><span>tests run</span></div><div class="tile"><b style="color:var(--good)">${c.pass}</b><span>passed</span></div><div class="tile"><b style="color:var(--warn)">${c.warn}</b><span>warnings</span></div><div class="tile"><b style="color:var(--bad)">${c.fail}</b><span>failed</span></div></div>
+  ${["Execution","Design","Statistics","Honesty"].map(g=>{const r=S.tests.filter(t=>t.g===g);return r.length?`<h3>${g}</h3>${r.map(t=>`<div class="trow"><span class="badge ${t.s}">${t.s==="pass"?"✓":"!"}</span><span>${esc(t.n)}${t.d?`<small>${esc(t.d)}</small>`:""}</span></div>`).join("")}`:""}).join("")}
+  <details><summary>Show the code and raw output</summary>
+    <div class="codebox" style="margin-bottom:12px"><div class="codebar"><span>experiment.py</span><button class="btn small" data-act="copycode" type="button">Copy</button></div><pre>${esc(S.code)}</pre></div>
+    <div class="term"><div class="termbar"><span class="tdots"><i></i><i></i><i></i></span><span>exit ${S.run.exit_code} · ${(S.run.ms/1000).toFixed(1)}s · ${S.run.source==="recorded"?"recorded run of the demo script":"live run"}</span></div><pre class="out">${colorize(S.run.stdout)}</pre></div>
+  </details>
+  <h3>Better tests we suggest</h3>
+  <div class="sug">${S.sug.map((x,i)=>`<label><input type="checkbox" data-pick="${i}" ${S.picked[i]?"checked":""}><span><b>${esc(x.name)}</b><small>${esc(x.why)}</small></span></label>`).join("")||`<p class="sub">No suggestions this time.</p>`}</div>
+  <div class="actions"><button class="btn" data-act="rerun" type="button">Re-run with the selected tests</button></div>
+  ${errBox()}
+  <div class="gate"><b>Your approval</b><p>Read the test report above. When you are happy with it, approve and Gemma writes the research paper in LaTeX. Nothing is written before you approve.${c.fail?" Some tests failed, so consider re-running first.":""}</p><button class="btn primary" data-act="approveResults" type="button">Approve results and write the paper</button></div>`; },
+
+/* 4 paper */ () => {
+  if(S.busy==="tex") return `<div class="phead">${chip("gemma")}</div><h2>Writing your research paper</h2><p class="lede">Building the LaTeX document from the approved results and the test report.</p><span class="chip gemma" style="padding:8px 14px">${spin("Gemma is writing…")}</span>`;
+  if(!S.tex) return `<h2>The paper was not written</h2>${errBox()}<div class="actions"><button class="btn primary" data-act="approveResults" type="button">Try again</button><button class="btn" data-act="goto" data-i="3" type="button">Back to the review</button></div>`;
+  const secs=[...S.tex.matchAll(/\\(?:sub)?section\*?\{([^}]*)\}/g)].map(m=>m[1]);
+  return `<div class="phead">${chip("researcher")}${chip("gemma")}<span style="color:var(--muted);font-size:13px">approved the results, Gemma wrote the paper</span></div><h2>Your research paper</h2>
+  <p class="lede">A complete LaTeX article. Download the .tex file or copy it into Overleaf. It needs the packages pgfplots, listings and tabularx, all included in standard TeX Live.</p>
+  <div class="outline">${secs.map(x=>`<span>${esc(x)}</span>`).join("")}</div>
+  <div class="codebox"><div class="codebar"><span>paper.tex</span><span><button class="btn small" data-act="copytex" type="button">Copy LaTeX</button> <button class="btn small" data-act="dltex" type="button">Download .tex</button></span></div><pre>${esc(S.tex)}</pre></div>
+  <div class="prov"><div><b><i class="dot d-researcher"></i>You</b>Domain, idea, plan approval and test approval.</div><div><b><i class="dot d-gemma"></i>Gemma</b>Design, code, analysis and draft text.</div><div><b><i class="dot d-devrelay"></i>DevRelay</b>Every number and every test result.</div></div>
+  <div class="actions" style="margin-top:20px"><button class="btn" data-act="goto" data-i="3" type="button">Back to the review</button><button class="btn" data-act="reset" type="button">Start a new study</button></div>`;
+}
+];
+function renderPanel(){ $("#panel").innerHTML = PANELS[S.stage](); }
+function render(){ renderStages(); renderPanel(); renderLog(); renderMode(); }
+
+/* ---------- actions ---------- */
+const ACT = {
+  goto(el){ const i=+el.dataset.i; if(i<=S.max&&!S.busy){S.stage=i;S.err="";render();} },
+  async design(){
+    if(!canGo()){ S.err="Demo mode only replays the recorded study. Connect a model in Settings to analyze your own problem."; render(); return; }
+    S.busy="design"; S.err=""; render();
+    try{
+      S.design=parseDesign(await callLLM("design")); S.stage=1; S.max=Math.max(S.max,1);
+      log("researcher","Described the domain and the problem"); log("gemma","Designed the study and explained it in plain words");
+    }catch(e){ S.err=e.message||String(e); }
+    S.busy=""; render();
+  },
+  redesign(){ ACT.design(); },
+  approve(){ if(S.busy)return; log("researcher","Approved the study design"); runPipeline(); },
+  example(el){ const e=EXAMPLES[+el.dataset.i]; Object.assign(S,{domain:e.domain,problem:e.problem,solution:e.solution,data:"",err:""}); render(); },
+  opensettings(){ $("#settings").hidden=false; },
+  copycode(){ copyText(S.code); },
+  copytex(){ copyText(S.tex); },
+  rerun(){ if(S.busy)return; S.extra=S.sug.filter((_,i)=>S.picked[i]).map(x=>x.name+": "+x.why); if(!S.extra.length){toast("Tick at least one test first");return;} log("researcher","Chose "+S.extra.length+" extra tests"); runPipeline(); },
+  async approveResults(){
+    if(S.busy)return; S.err=""; S.tex=""; S.busy="tex"; S.stage=4; S.max=4; log("researcher","Approved the test report"); render();
+    try{ S.tex=extractTex(await callLLM("tex")); log("gemma","Wrote the LaTeX research paper"); }catch(e){ S.err=e.message||String(e); }
+    S.busy=""; render();
+  },
+  dltex(){ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([S.tex],{type:"application/x-tex"})); a.download="paper.tex"; a.click(); URL.revokeObjectURL(a.href); },
+  reset(){ resetStudy(); }
+};
+document.addEventListener("click",e=>{
+  const el=e.target.closest("[data-act]"); if(!el||el.disabled)return;
+  const f=ACT[el.dataset.act]; if(f)f(el);
+});
+document.addEventListener("input",e=>{
+  const t=e.target;
+  if(t.dataset&&t.dataset.bind){ setPath(t.dataset.bind,t.value); const b=$("#gobtn"); if(b) b.disabled=!canGo(); }
+});
+
+document.addEventListener("change",e=>{ const i=e.target.dataset&&e.target.dataset.pick; if(i!==undefined) S.picked[i]=e.target.checked; });
+
+/* settings */
+function syncSettings(){
+  const c=S.cfg;
+  $("#wrap-url").hidden=c.provider!=="openai";
+  $("#wrap-key").hidden=c.provider==="demo";
+  $("#wrap-dr").hidden=$("#wrap-drt").hidden=$("#dr-note").hidden=c.exec!=="devrelay";
+  renderMode(); if(S.stage===0&&!S.busy&&S.panelReady) renderPanel();
+}
+$("#btn-settings").addEventListener("click",()=>{const s=$("#settings");s.hidden=!s.hidden});
+[["set-provider","provider"],["set-model","model"],["set-url","url"],["set-key","key"],["set-exec","exec"],["set-dr-url","drUrl"],["set-dr-token","drToken"]].forEach(([id,k])=>{
+  $("#"+id).addEventListener("input",e=>{S.cfg[k]=e.target.value;syncSettings()});
+});
+
+render(); S.panelReady=true; syncSettings();
+</script>
+
+</body></html>
